@@ -1,0 +1,1705 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sete Mares - Mapa Interativo</title>
+    <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Pirata+One&display=swap"
+        rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'IM Fell English', serif;
+            background: linear-gradient(135deg, #3d2912 0%, #1a0f06 100%);
+            color: #d4b896;
+            overflow-x: hidden;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text y="20" font-size="20">🖋️</text></svg>'), auto;
+        }
+
+        header {
+            background: linear-gradient(180deg, rgba(61, 41, 18, 0.95) 0%, rgba(26, 15, 6, 0.8) 100%);
+            border-bottom: 3px solid #8b6914;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        h1 {
+            font-family: 'Pirata One', cursive;
+            font-size: 3rem;
+            color: #d4af37;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.3);
+            letter-spacing: 3px;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: #a08860;
+            font-style: italic;
+            margin-top: 0.5rem;
+        }
+
+        /* --- ALTERAÇÃO NO CSS --- */
+        .container {
+            max-width: 1600px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+            position: relative;
+            /* <--- ADICIONE ESTA LINHA */
+        }
+
+        .map-wrapper {
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" /></filter><rect width="200" height="200" filter="url(%23noise)" opacity="0.05"/></svg>'),
+                linear-gradient(135deg, #f4e4c1 0%, #e8d4a8 100%);
+            border: 8px solid #5c3d1f;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 40px rgba(92, 61, 31, 0.2);
+            position: relative;
+            overflow: auto;
+            max-height: 90vh;
+            cursor: grab;
+        }
+
+        .map-wrapper:active {
+            cursor: grabbing;
+        }
+
+        /* --- ATUALIZE ESTA CLASSE EXISTENTE --- */
+        .map-container {
+            /* Mantenha as propriedades anteriores de tamanho */
+            width: 5000px;
+            height: 2500px;
+            /* ...demais propriedades... */
+            position: relative;
+            margin: 0 auto;
+            background: #e8d4a8;
+            border: 2px solid #8b6914;
+            border-radius: 4px;
+
+            /* PROPRIEDADES NOVAS OBRIGATÓRIAS PARA O ZOOM: */
+            transform-origin: 0 0;
+            /* O zoom parte do canto superior esquerdo */
+            transition: transform 0.3s ease-out;
+            /* Suaviza o zoom */
+        }
+
+        #worldMap {
+            width: 100%;
+            height: 100%;
+            /* Força preencher o container */
+            display: block;
+            /* MELHORIA DE QUALIDADE: */
+            /* Removemos o sepia para cores mais vivas e usamos high-quality */
+            filter: contrast(1.1) saturate(1.1);
+            image-rendering: high-quality;
+            /* Tenta forçar o navegador a renderizar melhor */
+            object-fit: cover;
+            /* --- SOLUÇÃO DO ARRASTAR IMAGEM --- */
+            /* Isso impede que o navegador tente copiar a imagem ao clicar */
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .region-marker {
+            position: absolute;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.95) 0%, rgba(139, 105, 20, 0.95) 100%);
+            border: 4px solid #5c3d1f;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), 0 0 20px rgba(212, 175, 55, 0.4);
+            animation: pulse 2s infinite;
+            z-index: 100;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), 0 0 20px rgba(212, 175, 55, 0.4);
+            }
+
+            50% {
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.6), 0 0 30px rgba(212, 175, 55, 0.8);
+            }
+        }
+
+        .region-marker:hover {
+            transform: scale(1.4);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 40px rgba(212, 175, 55, 0.9);
+            z-index: 200;
+            animation: none;
+        }
+
+        .region-marker::before {
+            content: '';
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border: 2px solid rgba(212, 175, 55, 0.3);
+            border-radius: 50%;
+            animation: ripple 2s infinite;
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(1.5);
+                opacity: 0;
+            }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 1000;
+            overflow-y: auto;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #f4e4c1 0%, #d4b896 100%);
+            margin: 3% auto;
+            padding: 0;
+            width: 90%;
+            max-width: 900px;
+            border: 10px solid #5c3d1f;
+            border-radius: 12px;
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, #8b6914 0%, #5c3d1f 100%);
+            padding: 1.5rem;
+            border-bottom: 4px solid #d4af37;
+            border-radius: 4px 4px 0 0;
+        }
+
+        .modal-header h2 {
+            font-family: 'Pirata One', cursive;
+            font-size: 2.5rem;
+            color: #d4af37;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.6);
+        }
+
+        .faction-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            background: rgba(212, 175, 55, 0.3);
+            border: 2px solid #d4af37;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .modal-body {
+            padding: 2rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-body::-webkit-scrollbar {
+            width: 12px;
+        }
+
+        .modal-body::-webkit-scrollbar-track {
+            background: #d4b896;
+        }
+
+        .modal-body::-webkit-scrollbar-thumb {
+            background: #5c3d1f;
+            border-radius: 6px;
+        }
+
+        .lore-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #3d2912;
+            margin-bottom: 1.5rem;
+        }
+
+        .carousel {
+            position: relative;
+            margin: 2rem 0;
+            border: 4px solid #8b6914;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .carousel-image {
+            width: 100%;
+            height: 400px;
+            object-fit: contain;
+            /* <--- ALTERAÇÃO AQUI: Mudado de 'cover' para 'contain' para exibir a imagem inteira sem cortes */
+            display: none;
+            background-color: rgba(0, 0, 0, 0.2);
+            /* Opcional: Adiciona um fundo para preencher o espaço vazio */
+        }
+
+        .carousel-image.active {
+            display: block;
+        }
+
+        .carousel-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(92, 61, 31, 0.8);
+            color: #d4af37;
+            border: 2px solid #d4af37;
+            padding: 1rem;
+            cursor: pointer;
+            font-size: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .carousel-btn:hover {
+            background: rgba(212, 175, 55, 0.9);
+            color: #3d2912;
+        }
+
+        .carousel-btn.prev {
+            left: 10px;
+        }
+
+        .carousel-btn.next {
+            right: 10px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: #8b0000;
+            color: #fff;
+            border: 2px solid #d4af37;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .close-btn:hover {
+            background: #b00000;
+            transform: rotate(90deg);
+        }
+
+        .route-panel {
+            background: rgba(244, 228, 193, 0.95);
+            border: 6px solid #5c3d1f;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        .route-panel h3 {
+            font-family: 'Pirata One', cursive;
+            font-size: 1.8rem;
+            color: #5c3d1f;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #8b6914;
+            padding-bottom: 0.5rem;
+        }
+
+        .port-select {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        .port-select select {
+            flex: 1;
+            padding: 0.8rem;
+            background: #fff;
+            border: 3px solid #8b6914;
+            border-radius: 4px;
+            font-family: 'IM Fell English', serif;
+            font-size: 1rem;
+            color: #3d2912;
+            cursor: pointer;
+        }
+
+        .calc-btn {
+            background: linear-gradient(135deg, #d4af37 0%, #8b6914 100%);
+            color: #fff;
+            border: 3px solid #5c3d1f;
+            padding: 1rem 2rem;
+            font-family: 'Pirata One', cursive;
+            font-size: 1.2rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .calc-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(212, 175, 55, 0.5);
+        }
+
+        .route-result {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: rgba(212, 175, 55, 0.2);
+            border: 3px solid #8b6914;
+            border-radius: 6px;
+            display: none;
+        }
+
+        .route-result.show {
+            display: block;
+        }
+
+        .result-item {
+            margin: 0.8rem 0;
+            font-size: 1.1rem;
+            color: #3d2912;
+        }
+
+        .result-item strong {
+            color: #5c3d1f;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .modal-content {
+                width: 95%;
+            }
+
+            .port-select {
+                flex-direction: column;
+            }
+        }
+
+        /* --- ESTILOS DO MODAL APRIMORADO --- */
+        .modal-content {
+            background: url('https://www.transparenttextures.com/patterns/aged-paper.png'), linear-gradient(135deg, #f4e4c1 0%, #d4b896 100%);
+            width: 98%;
+            /* AUMENTADO: Ocupa quase toda a largura da tela */
+            max-width: 1400px;
+            /* AUMENTADO: Limite maior para telas grandes */
+            border: 6px double #5c3d1f;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8), inset 0 0 60px rgba(61, 41, 18, 0.3);
+        }
+
+        .modal-header {
+            background: linear-gradient(90deg, rgba(92, 61, 31, 0.95) 0%, rgba(139, 105, 20, 0.9) 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            border-bottom: 3px solid #d4af37;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 2.8rem;
+            color: #fff;
+            text-shadow: 2px 2px 0 #000;
+        }
+
+        .modal-body-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            /* Coluna da imagem/lore + Coluna de Stats */
+            gap: 2rem;
+            padding: 2rem;
+        }
+
+        /* Coluna da Esquerda (Imagens e Texto) */
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* --- SUBTITUA APENAS ESTES BLOCOS NO SEU CSS --- */
+
+        .lore-box {
+            background: rgba(255, 255, 255, 0.4);
+            padding: 2rem;
+            border-radius: 4px;
+            border: 1px solid rgba(92, 61, 31, 0.2);
+            font-size: 1.3rem;
+            /* Fonte ajustada para leitura */
+            line-height: 1.6;
+            font-weight: 500;
+            text-align: justify;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.05);
+            color: #2a1a08;
+
+            /* --- NOVAS PROPRIEDADES IMPORTANTES --- */
+            display: flow-root;
+            /* Impede que a caixa colapse com a letra grande */
+            white-space: pre-line;
+            /* ATIVA OS PARÁGRAFOS E QUEBRAS DE LINHA */
+            min-height: 150px;
+        }
+
+        .lore-box::first-letter {
+            font-family: 'Pirata One', cursive;
+            font-size: 4.5rem;
+            float: left;
+            margin-right: 15px;
+            line-height: 0.8;
+            /* Ajuste fino para o topo da letra não cortar */
+            margin-top: 10px;
+            color: #8b0000;
+        }
+
+        /* Coluna da Direita (Ficha Técnica) */
+        .stats-panel {
+            background: rgba(61, 41, 18, 0.1);
+            border: 2px solid #8b6914;
+            padding: 1.5rem;
+            border-radius: 8px;
+            height: fit-content;
+        }
+
+        .stats-header {
+            font-family: 'Pirata One', cursive;
+            font-size: 1.8rem;
+            color: #5c3d1f;
+            border-bottom: 2px solid #8b6914;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .stat-row {
+            margin-bottom: 1rem;
+            border-bottom: 1px dashed rgba(92, 61, 31, 0.3);
+            padding-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-weight: bold;
+            color: #8b0000;
+            display: block;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            color: #2c1e0b;
+        }
+
+        .danger-meter {
+            display: flex;
+            gap: 5px;
+            font-size: 1.5rem;
+            margin-top: 5px;
+        }
+
+        /* Ajuste do Carrossel */
+        .carousel {
+            border: 3px solid #5c3d1f;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            background: #000;
+            margin: 0;
+            /* Remove margem antiga */
+        }
+
+        .carousel-image {
+            height: 350px;
+            /* Altura fixa */
+            object-fit: contain;
+            /* IMPORTANTE: Mantém a imagem inteira */
+        }
+
+        /* Responsividade */
+        @media (max-width: 900px) {
+            .modal-body-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .carousel-image {
+                height: 250px;
+            }
+        }
+
+        /* --- ADICIONE ISSO NO FINAL DO CSS --- */
+        .zoom-controls {
+            position: absolute;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            /* Garante que fique acima de tudo */
+        }
+
+        .zoom-btn {
+            background: linear-gradient(135deg, #d4af37 0%, #8b6914 100%);
+            color: #3d2912;
+            border: 2px solid #5c3d1f;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .zoom-btn:hover {
+            transform: scale(1.1);
+            background: #fff;
+        }
+
+        /* --- ADICIONE ISTO AO CSS --- */
+
+        /* Camada SVG para desenhar a linha */
+        .route-svg-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Deixa clicar no mapa através da linha */
+            z-index: 50; /* Fica abaixo dos marcadores (z-index 100) mas acima do mapa */
+        }
+
+        .route-line {
+            stroke: #d40000; /* Cor vermelha para a rota */
+            stroke-width: 4px;
+            stroke-dasharray: 10, 5; /* Linha pontilhada estilo mapa */
+            fill: none;
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+            animation: dash 30s linear infinite;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+
+        /* Estilo para o input de velocidade */
+        .speed-input-group {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 2px solid #8b6914;
+        }
+
+        .speed-input-group label {
+            color: #3d2912;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .speed-input-group input {
+            width: 80px;
+            padding: 5px;
+            font-family: 'Pirata One', cursive;
+            font-size: 1.2rem;
+            border: 2px solid #5c3d1f;
+            background: #f4e4c1;
+            color: #8b0000;
+        }
+        
+        /* Botões duplos no Modal */
+        .modal-btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>⚓ SETE MARES ⚓</h1>
+        <p class="subtitle">Mapa Interativo do Mundo Conhecido</p>
+    </header>
+
+    <div class="container">
+        <div class="map-wrapper">
+            <div class="map-container" id="mapContainer">
+                <img id="worldMap" src="Plesland 2026-01-20-13-11 (1).svg" alt="Mapa de Plesland"
+                    style="width: 100%; height: auto;">
+                    <svg class="route-svg-layer" id="routeSvg">
+                    <line id="drawnRouteLine" class="route-line" x1="0" y1="0" x2="0" y2="0" style="display: none;" />
+                </svg>
+                <div id="markers"></div>
+            </div>
+        </div>
+        <div class="zoom-controls">
+            <button class="zoom-btn" onclick="adjustZoom(0.2)" title="Aumentar Zoom">＋</button>
+            <button class="zoom-btn" onclick="adjustZoom(-0.2)" title="Diminuir Zoom">－</button>
+        </div>
+    </div>
+
+    <div class="route-panel">
+        <h3>🧭 Calculadora de Rotas Marítimas</h3>
+        
+        <div class="port-select">
+            <select id="startPort">
+                <option value="">Selecione o porto de partida</option>
+            </select>
+            <select id="endPort">
+                <option value="">Selecione o destino</option>
+            </select>
+        </div>
+
+        <div class="speed-input-group">
+            <label for="shipSpeed">Velocidade (km/h):</label>
+            <input type="number" id="shipSpeed" value="15" min="1" max="100">
+            <span style="font-size: 0.9rem; color: #5c3d1f;">(Padrão Galeão: 15 km/h)</span>
+        </div>
+        <button class="calc-btn" onclick="calculateRoute()">Calcular Rota</button>
+        
+        <div class="route-result" id="routeResult">
+            <div class="result-item"><strong>Distância:</strong> <span id="distance"></span></div>
+            <div class="result-item"><strong>Tempo estimado:</strong> <span id="time"></span></div>
+            </div>
+    </div>
+
+    <div class="modal" id="regionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h2 id="regionTitle">Nome da Região</h2>
+                    <div class="faction-badge" id="factionBadge">Facção</div>
+                </div>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+
+            <div class="modal-body-grid">
+                <div class="main-content">
+                    <div class="carousel" id="carousel">
+                        <button class="carousel-btn prev" onclick="changeImage(-1)">❮</button>
+                        <button class="carousel-btn next" onclick="changeImage(1)">❯</button>
+                    </div>
+                    <div class="lore-box" id="loreText">
+                    </div>
+                </div>
+
+                <div class="stats-panel">
+                    <div class="stats-header">Dados Regionais</div>
+
+                    <div class="stat-row">
+                        <span class="stat-label">Capital / Sede</span>
+                        <span class="stat-value" id="statCapital">Desconhecida</span>
+                    </div>
+
+                    <div class="stat-row">
+                        <span class="stat-label">Governante</span>
+                        <span class="stat-value" id="statLeader">Desconhecido</span>
+                    </div>
+
+                    <div class="stat-row">
+                        <span class="stat-label">Recursos Principais</span>
+                        <span class="stat-value" id="statExports">Variados</span>
+                    </div>
+
+                    <div class="stat-row">
+                        <span class="stat-label">Nível de Perigo</span>
+                        <div class="danger-meter" id="statDanger">
+                        </div>
+                    </div>
+
+                    <div class="stat-row" style="border:none;">
+                        <div class="modal-btn-group">
+                            <button class="calc-btn" style="width:50%; font-size:1rem; background: linear-gradient(135deg, #5c3d1f 0%, #3d2912 100%);" onclick="setRouteStart()">
+                                🚩 Partir Daqui
+                            </button>
+                            <button class="calc-btn" style="width:50%; font-size:1rem;" onclick="setRouteDestination()">
+                                ⚓ Chegar Aqui
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // --- 1. DADOS DO MUNDO COMPLETOS E ATUALIZADOS ---
+        const worldData = {
+            // === IMPÉRIO SOLAR ===
+            'Castrumia': {
+                title: 'Kingdom of Castrumia',
+                faction: 'Império Solar',
+                lore: `O coração dourado do Império. Castrumia ergue-se como bastião da fé, onde catedrais tocam os céus.\n\nSob o governo absolutista do Imperador Valerius IV, a região é o centro financeiro e espiritual, exportando não apenas ouro e armaduras ornamentadas, mas também o renomado vinho sacro.`,
+                coords: { x: 78, y: 28 },
+                ports: [{ name: 'Porto Castrumia', x: 78, y: 28 }],
+                capital: 'Solis Aeterna',
+                leader: 'Imperador Valerius IV',
+                exports: 'Ouro, Armaduras, Vinho Sacro',
+                danger: 2,
+                images: ['Cidade_Solar.jpg', 'Cidade_Solar_2.jpg', 'Catedral.jpg', 'Palacio_Barroco.jpg', 'Rei_imperio_Solar.jpg', 'Nobre_1.jpg']
+            },
+            'Bernovarius': {
+                title: 'Bernovarius',
+                faction: 'Império Solar',
+                lore: `Sede da Santa Inquisição, onde o sol raramente brilha através da fumaça das fogueiras. Suas masmorras na Cidadela da Penitência são as mais temidas do mundo conhecido.\n\nO Grão-Inquisidor Torquemada exporta o medo através de instrumentos de tortura e dogmas rígidos, mantendo a população sob vigilância constante.`,
+                coords: { x: 70, y: 22 },
+                ports: [{ name: 'Porto Bernovarius', x: 70, y: 22 }],
+                capital: 'Cidadela da Penitência',
+                leader: 'Grão-Inquisidor Torquemada',
+                exports: 'Instrumentos de Tortura, Teologia',
+                danger: 4,
+                images: ['Monasterio.jpg', 'Culto_Satânico.jpg', 'Forte_Solar_2.jpg', 'Forte_Solar_3.jpg']
+            },
+            'Tarbegia': {
+                title: 'Kingdom of Tarbegia',
+                faction: 'Império Solar',
+                lore: `Reino vassalo famoso por suas frotas de guerra e academias navais de elite. No Porto da Armada, o Almirante-Real Cortez supervisiona a construção dos galeões que garantem a hegemonia solar.\n\nÉ a capital intelectual da navegação, exportando os melhores mapas, bússolas e capitães do império para explorar o desconhecido.`,
+                coords: { x: 73, y: 43 },
+                ports: [{ name: 'Porto Tarbegia', x: 73, y: 43 }],
+                capital: 'Porto da Armada',
+                leader: 'Almirante-Real Cortez',
+                exports: 'Navios de Guerra, Mapas, Bússolas',
+                danger: 2,
+                images: ['Galeao_Imperial.webp', 'Galeao.webp', 'Galeao_2.webp', 'Porto_Colosso.jpg', 'Navios_Cais.jpg', 'Navio_Porto.jpg']
+            },
+            'Tarviomian': {
+                title: 'Tarviomian Empire',
+                faction: 'Império Solar',
+                lore: `Vasto império oriental e celeiro do leste. Sob o estandarte do sol e a liderança do ambicioso Regente Midas, seus conquistadores buscam constantemente novas terras.\n\nSeus exércitos são financiados por vastos campos de trigo dourado e pedreiras de mármore branco que abastecem as construções imperiais.`,
+                coords: { x: 85, y: 47 },
+                ports: [{ name: 'Porto Tarviomia', x: 85, y: 47 }],
+                capital: 'Aurum',
+                leader: 'Regente Midas',
+                exports: 'Trigo, Cavalos, Mármore',
+                danger: 3,
+                images: ['Fazenda.jpg', 'Fazendinha.jpg', 'Hacienda.jpg', 'Conquistador.jpg', 'Conquistador_2.jpg', 'Batalha_Cavalo.jpg']
+            },
+            'Partusia': {
+                title: 'Partusia',
+                faction: 'Império Solar',
+                lore: `Província fronteiriça brutal onde a lei é mantida pelo aço e pelo fogo. Governada pelo General Maximus a partir do Bastião Sul, é uma verdadeira forja de guerreiros.\n\nA região não produz luxo, apenas mercenários endurecidos e ferro de alta qualidade para alimentar a máquina de guerra imperial.`,
+                coords: { x: 76, y: 41 },
+                ports: [{ name: 'Porto Partusia', x: 76, y: 41 }],
+                capital: 'Bastião Sul',
+                leader: 'General Maximus',
+                exports: 'Mercenários, Ferro',
+                danger: 3,
+                images: ['Forte_Solar.jpg', 'Guerra.jpg', 'Conquistador_3.jpg', 'Conquistador_4.jpg', 'Capitão.jpg']
+
+            },
+            'Rovia': {
+                title: 'Rovia',
+                faction: 'Império Solar',
+                lore: `Terra austera de mosteiros fortificados e cavaleiros-monges fanáticos. O Abade Supremo guarda relíquias antigas e controla a produção da famosa Cerveja Monástica.\n\nDizem que a bebida é forte o suficiente para encorajar exércitos inteiros antes da batalha, sendo o principal produto de troca da região.`,
+                coords: { x: 83, y: 28 },
+                ports: [{ name: 'Porto Rovia', x: 83, y: 28 }],
+                capital: 'Sanctum Rovia',
+                leader: 'Abade Supremo',
+                exports: 'Cerveja Monástica, Relíquias',
+                danger: 2,
+                images: ['Monasterio.jpg', 'Catedral.jpg', 'Igreja_Rural.jpg', 'Comida_Taverna.jpg', 'Comida_Taverna_2.jpg']
+
+            },
+            'Panovaria': {
+                title: 'Panovaria',
+                faction: 'Império Solar',
+                lore: `Fortaleza do norte, conhecida por suas muralhas impenetráveis de pedra negra. O Duque de Ferro comanda este centro industrial onde forjas nunca dormem.\n\nAlimentadas por minas de carvão inesgotáveis, as ferrarias de Ternovaria criam as defesas e as armas pesadas do Império.`,
+                coords: { x: 76, y: 24 },
+                ports: [{ name: 'Porto Panovaria', x: 76, y: 24 }],
+                capital: 'Pedra Alta',
+                leader: 'Duque de Ferro',
+                exports: 'Pedra, Carvão',
+                danger: 3,
+                images: ['Forte_Montanha.jpg', 'Forte_Solar_3.jpg', 'Industrialização.jpg', 'Cidade_Montanha_Solar.jpg']
+
+            },
+            'Bravomavia': {
+                title: 'Bravomavia',
+                faction: 'Império Solar',
+                lore: `Reino montanhoso rico em minérios que financiam as cruzadas imperiais. Sob a astuta Baronesa Vânia, as Minas da Coroa extraem prata e joias preciosas.\n\nA riqueza da região é lendária, mas a ganância da nobreza local torna as passagens nas montanhas traiçoeiras para viajantes desavisados.`,
+                coords: { x: 83, y: 23 },
+                ports: [{ name: 'Porto Bravomavia', x: 83, y: 23 }],
+                capital: 'Mina da Coroa',
+                leader: 'Baronesa Vânia',
+                exports: 'Joias, Prata',
+                danger: 2,
+                images: ['Forte_Montanha.jpg', 'Nobre_2.jpg', 'Nobre_3.jpg', 'Rainha_Imperio_Solar.jpg']
+
+            },
+            // === NOVAS PROVÍNCIAS DO IMPÉRIO SOLAR ===
+
+            'Murdumia': {
+                title: 'Grão-Ducado de Murdumia',
+                faction: 'Império Solar',
+                lore: `Conhecido como o "Celeiro do Sol". Estas vastas planícies douradas alimentam as legiões imperiais. O povo aqui é trabalhador e devoto, vigiado de perto por torres de observação solar.\n\nO Duque Gorm governa com mão de ferro para garantir que as cotas de grãos e gado sejam enviadas pontualmente para a capital.`,
+                coords: { x: 83, y: 38 },
+                ports: [{ name: 'Porto Lelia', x: 83, y: 38 }],
+                capital: 'Lelia',
+                leader: 'Duque Gorm, o Provedor',
+                exports: 'Trigo Dourado, Gado, Couro',
+                danger: 2,
+                images: ['Fazenda.jpg', 'Fazendinha.jpg', 'Hacienda.jpg', 'Colonia.jpg', 'Colonia_2.jpg']
+
+            },
+
+            'Lintavia': {
+                title: 'Protetorado de Lintavia',
+                faction: 'Império Solar',
+                lore: `A fronteira gelada da fé. Lintavia é um território de conversão forçada, onde missionários do Sol tentam "aquecer" as terras frias com a doutrina imperial.\n\nÉ o local de exílio para nobres desonrados, que devem servir na Muralha de Gelo sob o comando da severa Matriarca Elara para expiar seus pecados.`,
+                coords: { x: 87, y: 37 },
+                ports: [{ name: 'Forte Lintiavi', x: 87, y: 37 }],
+                capital: 'Lintiavi',
+                leader: 'Matriarca Elara (Exilada)',
+                exports: 'Prata, Peles, Minério de Ferro Frio',
+                danger: 3,
+                images: ['Forte_Deserto.jpg', 'Forte_Lago.jpg', 'Cidade_Lascada.jpg', 'Cidade_Velha.jpg']
+
+            },
+
+            'Matiania': {
+                title: 'Reino Vassalo de Matiania',
+                faction: 'Império Solar',
+                lore: `O centro logístico do Império. Matiania manteve seu rei, mas perdeu sua liberdade. Hoje, serve como o grande cofre onde os impostos de todas as colônias são processados.\n\nA burocracia aqui é sufocante, e a Guarda Imperial patrulha cada estrada de Auvareve para garantir que nenhuma moeda de ouro escape aos cofres do Imperador.`,
+                coords: { x: 91, y: 50 },
+                ports: [{ name: 'Porto Canum', x: 91, y: 50 }],
+                capital: 'Auvareve',
+                leader: 'Rei-Fantoche Matian III',
+                exports: 'Burocracia, Tecidos, Impostos',
+                danger: 1,
+                images: ['Cidade_Solar.jpg', 'Nobre_4.jpg', 'Nobre_5.jpg', 'Nobre_6.jpg', 'Palacio_Barroco.jpg']
+            },
+
+            'Getovia': {
+                title: 'Província Florestal de Getovia',
+                faction: 'Império Solar',
+                lore: `Antigamente uma floresta sagrada, agora é a serraria do Império. As árvores gigantes são derrubadas dia e noite para construir os galeões da Grande Armada.\n\nO Arquiduque Sylas é responsável pelo desmatamento industrial, esmagando qualquer resistência dos nativos que tentam proteger seus bosques ancestrais.`,
+                coords: { x: 91, y: 40 },
+                ports: [{ name: 'Porto Beginaven', x: 91, y: 40 }],
+                capital: 'Beginaven',
+                leader: 'Arquiduque Sylas',
+                exports: 'Madeira Naval, Carvão Vegetal, Caça',
+                danger: 3,
+                images: ['Cidade_Destruida.jpg', 'Vila_Destruida.jpg', 'Vila_Destruida_2.jpg', 'Destruição.jpg', 'Natureza.jpg']
+            },
+
+            'Baniumia': {
+                title: 'Capitania de Baniumia',
+                faction: 'Império Solar',
+                lore: `O porto de luxo do leste. Baniumia é onde a nobreza imperial vem para gastar suas fortunas em especiarias exóticas e pérolas.\n\nEmbora pareça um paraíso, o Governador Valerio mantém uma rede de espiões implacável para garantir que nenhum contrabandista fure o monopólio comercial do Império Solar.`,
+                coords: { x: 91, y: 43 },
+                ports: [{ name: 'Porto Borum', x: 91, y: 43 }],
+                capital: 'Borum',
+                leader: 'Governador Valerio',
+                exports: 'Especiarias, Pérolas, Seda',
+                danger: 2,
+                images: ['Porto_Colosso_2.jpg', 'Porto_Colosso_3.jpg', 'Cidade_Portuaria.jpg', 'Cidade_Portuaria_2.jpg', 'Nobre_1.jpg']
+
+            },
+
+            'Agustatia': {
+                title: 'Margraviado de Agustatia',
+                faction: 'Império Solar',
+                lore: `Conhecida oficialmente como "Tiefagustatia" (Agustatia Profunda), esta é a província industrial do Império. O céu aqui é frequentemente cinza, não por nuvens, mas pela fumaça das grandes forjas de Schlullorinium.\n\nSob a gestão eficiente do Margrave Otto, a região fornece o aço e a engenharia de ponta que armam as legiões solares. Seus habitantes são conhecidos por serem estoicos e disciplinados.`,
+                coords: { x: 75, y: 54 }, // Ajuste conforme a posição real no mapa completo
+                ports: [{ name: 'Porto Rorialo', x: 75, y: 54 }, { name: 'Porto Vintia', x: 32, y: 50 }],
+                capital: 'Schlullorinium',
+                leader: 'Margrave Otto von Stahl',
+                exports: 'Aço Temperado, Maquinaria, Armas de Cerco',
+                danger: 3,
+                images: ['Industrialização.jpg', 'Forte_Solar.jpg', 'Forte_Solar_2.jpg', 'Guerra.jpg']
+
+            },
+
+            'Lunum': {
+                title: 'Província Costeira de Lunum',
+                faction: 'Império Solar',
+                lore: `Uma província estratégica ao longo da costa norte. Lunum é vital para a presença naval do Império na região. Sua capital, Norum, abriga um importante estaleiro e serve como base para a frota do norte.\n\nSob o comando do Almirante Valerius, a região garante a segurança das rotas comerciais marítimas e fornece embarcações rápidas para a marinha imperial.`,
+                coords: { x: 79, y: 53 }, // Ajuste conforme a posição real no mapa completo
+                ports: [{ name: 'Porto Norum', x: 79, y: 53 }],
+                capital: 'Norum',
+                leader: 'Almirante Valerius',
+                exports: 'Fragatas Rápidas, Peixe Salgado, Cordame Naval',
+                danger: 2,
+                images: ['Galeao_3.webp', 'Galeao_4.webp', 'Navios_Batalha.jpg', 'Navios_Cais.jpg', 'Porto_Colosso.jpg']
+            },
+            // === COMPANHIA DAS ÍNDIAS ===
+            'Lugronia Sul': {
+                title: 'Grão-Ducado de Lugronia Sul',
+                faction: 'Companhia das Índias',
+                lore: `O cérebro financeiro da Companhia. Enquanto o resto do mundo luta, Lugronia Sul calcula. Em Nova Amsterdã, arranha-céus de tijolos vermelhos abrigam bancos onde se decide o destino de nações.\n\nSob o olhar frio do Lorde Diretor Van Der Meer, esta é uma sociedade de contratos e etiquetas, onde a única religião verdadeira é o Lucro Líquido e onde a falência é punida mais severamente que o assassinato.`,
+                coords: { x: 81, y: 67 },
+                ports: [{ name: 'Porto Nova Amsterdã', x: 81, y: 67 }],
+                capital: 'Nova Amsterdã',
+                leader: 'Lorde Diretor Van Der Meer',
+                exports: 'Ações, Empréstimos, Joias',
+                danger: 1,
+                images: ['Dutch_Porto.jpg', 'Dutch_Porto_Florido.jpg', 'Era_Victoriana.jpg', 'Companhia_Indias_Interior.jpg', 'Rainha_Companhia_Oriental.jpg']
+            },
+            'Matrania': {
+                title: 'Kingdom of Matrania',
+                faction: 'Companhia das Índias',
+                lore: `Reino onde a coroa foi comprada pela Companhia e serve aos interesses mercantis. O Rei-Comerciante George transformou a nação em uma fábrica têxtil gigante.\n\nExportando lã e tecidos produzidos em massa, Matrania veste a elite do mundo enquanto seus tecelões trabalham em turnos intermináveis.`,
+                coords: { x: 62, y: 71 },
+                ports: [{ name: 'Porto Matrania', x: 62, y: 71 }],
+                capital: 'Porto Real Mercantil',
+                leader: 'Rei-Comerciante George',
+                exports: 'Tecidos, Lã',
+                danger: 2,
+                images: ['Era_Victoriana.jpg', 'Victorian_Era_Nobre.jpg', 'Interior_Casa_Victoriana.jpg', 'Area_Victoriana.jpg']
+            },
+            'Luntivia': {
+                title: 'Luntivia',
+                faction: 'Companhia das Índias',
+                lore: `Colônia de exploração intensiva com plantações a perder de vista. Na capital Plantation City, o Feitor-Mor governa com chicote e livro-caixa.\n\nA região extrai açúcar, tabaco e café sob constante ameaça de revoltas trabalhistas e ataques de rebeldes vindos das selvas circundantes.`,
+                coords: { x: 71, y: 63 },
+                ports: [{ name: 'Porto Luntivia', x: 71, y: 63 }],
+                capital: 'Plantation City',
+                leader: 'Feitor-Mor',
+                exports: 'Açúcar, Tabaco, Café',
+                danger: 4,
+                images: ['Colonia_3.jpg', 'Colonia_4.jpg', 'Colonia_5.jpg', 'Fazenda_Chá.jpg', 'Hacienda.jpg']
+
+            },
+            'Tienbachia': {
+                title: 'Tienbachia',
+                faction: 'Companhia das Índias',
+                lore: `Entreposto estratégico que controla o estreito entre oceanos. O Almirante da Alfândega garante que nenhum navio passe sem pagar o dízimo.\n\nEsta região atua como a guardiã burocrática e militar das rotas comerciais, cobrando taxas exorbitantes pela segurança da passagem.`,
+                coords: { x: 78, y: 58 },
+                ports: [{ name: 'Porto Tienbachia', x: 78, y: 58 }],
+                capital: 'O Portão',
+                leader: 'Almirante da Alfândega',
+                exports: 'Impostos, Taxas Portuárias',
+                danger: 2,
+                images: ['Forte_Alagado.jpg', 'Forte_Lago.jpg', 'Porto_Colosso.jpg', 'Fortaleza_Ilha.jpg']
+
+            },
+            'Lugronia Norte': {
+                title: 'Protetorado de Lugronia Norte',
+                faction: 'Companhia das Índias',
+                lore: `O punho armado do monopólio. Se o Sul é onde o dinheiro é contado, o Norte é onde ele é garantido com pólvora e aço. É um vasto complexo de estaleiros e fortes que guardam os depósitos de especiarias.\n\nO Governador Eastwick mantém lei marcial perpétua, garantindo que o fluxo de canela e cravo nunca pare, esmagando piratas e contrabandistas com eficiência brutal.`,
+                coords: { x: 88, y: 59 },
+                ports: [{ name: 'Forte Especiaria', x: 88, y: 59 }],
+                capital: 'Bastião do Cravo',
+                leader: 'Governador Eastwick',
+                exports: 'Navios, Canhões, Especiarias Raras',
+                danger: 3,
+                images: ['Dutch_Farm.jpg', 'Dutch_Flower.jpg', 'Galeao_Comercial_1.webp', 'Galeao_Comercial_2.webp', 'Forte_Deserto.jpg']
+            },
+
+            // === CONFEDERAÇÃO DAS MARÉS ===
+
+            'Salerinia': {
+                title: 'Tribos de Salerinia',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado nos povos do Norte (Inuit/Haida). Uma terra de fiordes gelados e florestas de pinheiros gigantes. O Grande Xamã invoca os espíritos dos ursos e das baleias através de imensos totens esculpidos na costa.\n\nEles são os guardiões do norte, caçando em caiaques rápidos e protegendo suas águas sagradas de baleeiros imperiais gananciosos.`,
+                coords: { x: 31, y: 31 },
+                ports: [{ name: 'Porto dos Totens', x: 31, y: 31 }],
+                capital: 'Ledelia', // Usando a cidade visível no mapa
+                leader: 'Grande Xamã do Urso',
+                exports: 'Óleo de Baleia, Peles Grossas, Totens',
+                danger: 3,
+                images: ['Viking_Cidade_2.jpg','Viking_Cidade.jpg','Viking_Forte.jpg','Viking_Igreja.jpg', 'Viking_Archer.jpg', 'Viking_Warrior_Woman.jpg', 'Vikin_Archer_2.jpg', 'Templo_Tiki.jpg']
+
+            },
+
+            'Bocornia': {
+                title: 'Reino de Bocornia',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado nos grandes impérios africanos (Mali/Zulu). Uma vasta savana costeira governada pelo Rei-Leão a partir de Burnonia. Seus guerreiros, armados com lanças e escudos de couro, são disciplinados e letais.\n\nA região é incrivelmente rica em ouro de aluvião, o que atrai a cobiça de todos, mas a febre das selvas vizinhas protege seus tesouros.`,
+                coords: { x: 30, y: 50 },
+                ports: [{ name: 'Porto Burnonia', x: 30, y: 50 }],
+                capital: 'Burnonia',
+                leader: 'Rei-Guerreiro Shaka',
+                exports: 'Pó de Ouro, Marfim, Diamantes Brutos',
+                danger: 4,
+                images: ['Africano_Império.jpg', 'Africano_Império_2.jpg', 'Africano_Império_3.jpg', 'Africano_Império_4.jpg','African_Warrior.jpg', 'African_warrior_2.jpg', 'African_Warrior_3.jpg', 'African_Shield.jpg', 'African_Shield_2.jpg', 'African_Archer.jpg', 'African_Mounted.jpg']
+
+            },
+
+            'Moriatum': {
+                title: 'Arquipélago de Moriatum',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado na Oceania (Maori/Polinésia). Guerreiros tatuados que dominam a navegação estelar. Eles realizam o "Haka" antes das batalhas navais para aterrorizar seus inimigos.\n\nVivendo em harmonia com o oceano, eles consideram os tubarões como ancestrais e usam armas feitas de madeira de koa e dentes de predadores marinhos.`,
+                coords: { x: 9, y: 50 },
+                ports: [{ name: 'Porto Corviocor', x: 9, y: 50 }],
+                capital: 'Moriatum',
+                leader: 'Chefe Navegador Maui',
+                exports: 'Tatuagens Místicas, Pérolas Negras, Armas de Tubarão',
+                danger: 3,
+                images: ['Maori_Warrior.jpg', 'Polinesia_Vila.jpg', 'Polinesia_Vila_2.jpg', 'Vila_Polinesia.jpg', 'Tribo_Polinesia.jpg', 'War_Canoe.jpg']
+
+            },
+
+            'Racocoli': {
+                title: 'Cacicado de Racocoli',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado nos povos Tupi/Caraíbas. Uma terra de selvas vibrantes e rios sinuosos. O Cacique Guara lidera ataques surpresa usando canoas camufladas e zarabatanas com curare.\n\nEles são mestres em guerra de guerrilha, desaparecendo na mata antes que o inimigo possa recarregar seus mosquetes.`,
+                coords: { x: 25, y: 44 },
+                ports: [{ name: 'Aldeia Contiano', x: 25, y: 44 }],
+                capital: 'Contiano',
+                leader: 'Cacique Guara',
+                exports: 'Tinturas Vermelhas (Pau-Brasil), Penas, Curare',
+                danger: 4,
+                images: ['Indigenous_Warrior.jpg', 'Brazilian_archer.jpg', 'Amazonia.jpg', 'Selva.jpg', 'Ocas.jpg', 'Natureza_Indigena.jpg']
+
+            },
+
+            'Ledelia': {
+                title: 'Ilhas do Sonho (Ledelia)',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado nos Aborígenes Australianos. Uma ilha de terra vermelha e lendas antigas. Os habitantes vivem no "Tempo do Sonho" e protegem pinturas rupestres que contam a história da criação do mundo.\n\nDizem que seus bumerangues nunca erram o alvo e que seus rastreadores podem encontrar água nas pedras mais secas.`,
+                coords: { x: 55, y: 10 },
+                ports: [{ name: 'Porto do Sonho', x: 55, y: 12 }],
+                capital: 'Caverna Ancestral',
+                leader: 'O Guardião do Sonho',
+                exports: 'Opala, Ocre, Sabedoria Ancestral',
+                danger: 2,
+                images: ['Ilha_Tropical.jpg', 'Ilha_Tropical_2.jpg', 'Natureza_Indigena.jpg', 'Ruinas.jpg']
+
+            },
+
+            'Rivis': {
+                title: 'Nômades de Rivis',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado nos povos Beduínos e Tuaregues. Uma vasta terra árida onde o horizonte tremula com o calor. As tribos aqui não navegam apenas no mar, mas no "oceano de areia" usando camelos e navios adaptados para as dunas.\n\nLiderados pelo Xeque dos Ventos em Viohlaila (a "Cidade dos Oásis"), eles são mestres na astronomia, no comércio de especiarias e na arte da cimitarra.`,
+                coords: { x: 31, y: 36 },
+                ports: [{ name: 'Oásis de Lahja', x: 31, y: 36 }],
+                capital: 'Viohlaila',
+                leader: 'Xeque dos Ventos',
+                exports: 'Incenso, Vidro do Deserto, Cavalos Velozes',
+                danger: 3,
+                images: ['Cidade_Árabe.jpg', 'Palacio_Arabe.jpg', 'Palacio_Arabe_2.jpg', 'Mercado_Deserto.jpg', 'MulssomanoMercado.jpg']
+
+            },
+
+            'Batumia': {
+                title: 'Clãs do Norte de Rivis',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado nos povos Nórdicos e Vikings antigos. Uma região de fiordes enevoados e florestas de coníferas. Os guerreiros de Rivis não usam pólvora, preferindo a honra do machado e do escudo redondo.\n\nEles acreditam que morrer em batalha é a única forma de alcançar o salão dos ancestrais. Seus dracares (navios-dragão) são temidos por sua velocidade e pela fúria de suas tripulações berserkers.`,
+                coords: { x: 28, y: 43 },
+                ports: [{ name: 'Fiorde de Lunum', x: 52, y: 43 }],
+                capital: 'Herculana (O Salão de Hidromel)',
+                leader: 'Jarl Bjorn, Braço de Ferro',
+                exports: 'Âmbar, Peles de Lobo, Aço Rúnico',
+                danger: 4,
+                images: ['Viking_Archer.jpg', 'Viking_Warrior_Woman.jpg', 'Vikin_Archer_2.jpg', 'Alpes_Suicos.jpg']
+
+            },
+            'Equumia': {
+                title: 'Equumian Empire',
+                faction: 'Confederação das Marés',
+                lore: `Império ancestral onde guerreiros pintados defendem templos de pedra antiga. O Imperador-Jaguar comanda de Teotl-Kan, protegendo as tradições sagradas.\n\nEles controlam o comércio de Jade e Obsidiana e lutam ferozmente contra a ganância estrangeira que ameaça suas terras sagradas.`,
+                coords: { x: 22, y: 52 },
+                ports: [{ name: 'Porto Equumian', x: 22, y: 52 }],
+                capital: 'Teotl-Kan',
+                leader: 'Imperador-Jaguar',
+                exports: 'Jade, Obsidiana, Cacau',
+                danger: 3,
+                images: ['Asteca_City.jpg', 'Asteca_City_2.jpg', 'Astec_City.jpg', 'Astec_City_2.jpg', 'Guerreiro_asteca.jpg', 'Guerreiro_maya.jpg', 'maya.jpg']
+
+            },
+            'Eugusia': {
+                title: 'Republic of Eugusia',
+                faction: 'Confederação das Marés',
+                lore: `República tribal que une clãs diversos sob a bandeira da liberdade e cooperação. Na Grande Tenda, o Conselho de Anciãos delibera sobre o futuro da aliança.\n\nFocados na proteção das florestas de madeira rara e no comércio sustentável de peles, eles são um exemplo de união contra a tirania.`,
+                coords: { x: 18, y: 60 },
+                ports: [{ name: 'Porto Eugusia', x: 18, y: 60 }],
+                capital: 'Grande Tenda',
+                leader: 'Conselho de Anciãos',
+                exports: 'Peles, Madeira Rara',
+                danger: 2,
+                images: ['Ocas.jpg', 'Acampamento.jpg', 'Natureza_Indigena.jpg', 'Indigenous_Warrior.jpg']
+
+            },
+            'Ascremia': {
+                title: 'Ascremia',
+                faction: 'Confederação das Marés',
+                lore: `Terra misteriosa dos xamãs, escondida sob árvores milenares. A Grande Mãe guarda segredos de plantas medicinais e venenos letais em Raiz Profunda.\n\nÉ um território perigoso onde a própria flora pode ser a sentença de morte de um invasor, e curas milagrosas são trocadas por favores obscuros.`,
+                coords: { x: 15, y: 70 },
+                ports: [{ name: 'Porto Ascremia', x: 15, y: 70 }],
+                capital: 'Raiz Profunda',
+                leader: 'A Grande Mãe',
+                exports: 'Poções, Venenos, Curas',
+                danger: 4,
+                images: ['Plantas_Bruxas.jpg', 'Plantas_Mortais.jpg', 'Planta_Venenosa.jpg', 'Loja_Apotecária.jpg', 'Loja_Apotecária_2.jpg', 'Ruinas_Apotecárias.jpg']
+
+            },
+            'Gevevia': {
+                title: 'Gevevia',
+                faction: 'Confederação das Marés',
+                lore: `Lar de pescadores guerreiros cujas canoas superam galeões em velocidade. Liderados pelo Chefe Trovão do Mar, eles dominam as águas costeiras.\n\nEles colhem pérolas nas águas cristalinas do Recife Azul e defendem ferozmente seu território marinho contra navios negreiros e piratas.`,
+                coords: { x: 31, y: 56 },
+                ports: [{ name: 'Porto Gevevia', x: 31, y: 56 }],
+                capital: 'Recife Azul',
+                leader: 'Chefe Trovão do Mar',
+                exports: 'Pérolas, Peixe Seco',
+                danger: 3,
+                images: ['War_Canoe.jpg', 'Polinesia_Vila.jpg', 'Ilha_Tropical_3.jpg', 'Coral.jpg', 'Oceano.jpg']
+
+            },
+            'Ligentovia': {
+                title: 'Mahajanapada de Ligentovia', // "Grande Reino" em Sânscrito
+                faction: 'Confederação das Marés',
+                lore: `Inspirado na Índia Antiga e nos impérios marítimos do sul da Ásia. Uma terra vibrante de templos esculpidos na rocha viva e selvas cheias de tigres.\n\nGovernados pela Maharani Indu a partir do Trono de Lótus em Lontium, eles são mestres no comércio de especiarias e na arte marcial do Kalaripayattu. Seus guerreiros montam elefantes de guerra blindados que atropelam qualquer invasor colonial que ouse pisar em suas terras sagradas.`,
+                coords: { x: 27, y: 33 }, // Ajustado para a região amarela na imagem
+                ports: [{ name: 'Porto Flania', x: 27, y: 33 }, { name: 'Veririni (Porto das Especiarias)', x: 45, y: 15 }],
+                capital: 'Lontium (A Cidade Dourada)',
+                leader: 'Maharani Indu, a Tigresa',
+                exports: 'Aço Wootz, Elefantes de Guerra, Especiarias Raras',
+                danger: 3,
+                images: ['India_Antigo.jpg', 'India_Antigo_2.jpg', 'India_Antigo_3.jpg', 'India_Antigo_4.jpg','Indian_Warrior.jpg', 'Indian_Shooter.jpg', 'Indian_Woman_Warrior.jpg']
+
+            },
+            'Dinia': {
+                title: 'Mim',
+                faction: 'Confederação das Marés',
+                lore: `Ilha vulcânica sagrada habitada por espíritos ancestrais e terreno hostil. O Oráculo de Fogo interpreta a vontade da terra na Cratera Sagrada.\n\nÉ uma região onde o chão pode engolir o viajante, mas rica em enxofre e vidro vulcânico, materiais essenciais para alquimistas e artífices.`,
+                coords: { x: 32, y: 62 },
+                ports: [{ name: 'Porto Mim', x: 32, y: 62 }],
+                capital: 'Cratera Sagrada',
+                leader: 'Oráculo de Fogo',
+                exports: 'Enxofre, Vidro Vulcânico',
+                danger: 5,
+                images: ['Jungle_Temple.webp', 'Ruinas.jpg', 'Templo_Tiki.jpg', 'Ilha.jpg']
+
+            },
+            'Aetia': {
+                title: 'Clã Aetia',
+                faction: 'Confederação das Marés',
+                lore: `Inspirado no Japão Feudal. Uma terra de ilhas montanhosas e brumas eternas, onde a honra vale mais que a vida. O Daimyo Kenshin governa do Castelo da Garça, protegendo os segredos da forja do aço dobrado.\n\nSeus guerreiros samurais e arqueiros (Kyudo) defendem os campos de arroz e os templos de cerejeiras (Sakura) com uma disciplina letal, recusando-se a curvar-se perante imperadores estrangeiros.`,
+                coords: { x: 17, y: 69 },
+                ports: [{ name: 'Porto dos Lótus', x: 17, y: 69 }],
+                capital: 'Castelo da Garça',
+                leader: 'Daimyo Kenshin',
+                exports: 'Aço Dobrado (Katanas), Arroz, Seda',
+                danger: 3,
+                images: ['Japanese_City.jpg', 'Japanese_Warrior.jpg', 'Japanese_Archer.jpg', 'Vila_Coreana.jpg', 'Vila_Coreana_2.jpg', 'Vila_Coreana_3.jpg', 'Jardim_Sakura.jpg']
+
+            },
+            'Marcodupia': {
+                title: 'Marcodupia',
+                faction: 'Confederação das Marés',
+                lore: `Fronteira selvagem onde a selva é densa e mortal. O Senhor das Feras governa do Forte da Selva, controlando o tráfico de criaturas vivas.\n\nCaçadores de todo o mundo vêm aqui em busca de animais exóticos, mas na selva de Marcodupia, a linha entre o caçador e a caça é frequentemente apagada.`,
+                coords: { x: 29, y: 65 },
+                ports: [{ name: 'Porto Marcodupia', x: 28, y: 65 }],
+                capital: 'Forte da Selva',
+                leader: 'Senhor das Feras',
+                exports: 'Animais Exóticos',
+                danger: 4,
+                images: ['Amazonia.jpg', 'Selva.jpg', 'Cidade_Pantano.jpg', 'Pântano.jpg', 'Natureza_Indigena.jpg']
+
+            },
+
+            // === NOVA NAÇÃO (Inspirada na Grécia Antiga) ===
+            'Akros': {
+                title: 'Symmachia de Akros',
+                faction: 'Confederação das Marés', // Se encaixa bem como cidades-estado independentes
+                lore: `Uma nação forjada na dualidade de ferro e mármore. A ilha é dividida entre duas grandes pólis rivais unidas apenas pela defesa mútua.\n\nAo norte, Latasau (a "Atenas" local) é o berço da democracia e da filosofia, protegida por uma marinha imbatível. Ao sul, a fortaleza de Icta Krika (a "Esparta" local) treina, desde a infância, a infantaria mais temida do mundo conhecido.`,
+                coords: { x: 48, y: 51 }, // ⚠️ AJUSTE: Coloque as coordenadas X/Y onde a ilha está no seu mapa
+                ports: [{ name: 'Porto de Latasau', x: 48, y: 51 }], 
+                capital: 'Icta Krika / Latasau',
+                leader: 'O Diarca (O Filósofo e o Estratega)',
+                exports: 'Azeite, Vinho, Filosofia, Mercenários de Elite (Hoplitas)',
+                danger: 3,
+                images: ['Grecia_Porto.jpg', 'Grecia_Cidade.jpg', 'Grecia_Cidade_2.jpg', 'Greek_Trireme.jpg', 'Greek_Warrior.jpg', 'Greek_Archer.jpg', "Grecia_Nobre.jpg"]
+            },
+
+            // === REPÚBLICA DA CAVEIRA ===
+            'Arna': {
+                title: 'Arna - Capital Pirata',
+                faction: 'República da Caveira',
+                lore: `A lendária cidade onde a única lei é o Código e todo homem é livre. Em Nassau Livre, o Rei Pirata Edward reina pelo respeito de sua lâmina.\n\nÉ um farol de caos que vive de rum, jogo e pólvora. O lugar mais excitante e perigoso dos mares, onde fortunas são gastas tão rápido quanto são roubadas.`,
+                coords: { x: 69, y: 53 },
+                ports: [{ name: 'Porto Arna', x: 69, y: 53 }],
+                capital: 'Nassau Livre',
+                leader: 'Rei Pirata Edward',
+                exports: 'Rum, Itens Roubados, Pólvora',
+                danger: 5,
+                images: ['Pirata_1.jpg', 'Pirata_2.jpg', 'Pirata_3.jpg', 'Tropical Pirate Town.webp', 'Pirate Cluster.webp', 'Esconderijo_Pirata.jpg', 'Bordel.jpg']
+
+            },
+            'Artania': {
+                title: 'Artania',
+                faction: 'República da Caveira',
+                lore: `Ilha dos estaleiros clandestinos, lar do Mestre Carpinteiro Jack. Na Doca Quebrada, constroem-se os navios mais rápidos do mundo.\n\nEles especializam-se em bergantins modificados e velas negras para camuflagem noturna, essenciais para capitães que preferem não ser vistos pela marinha real.`,
+                coords: { x: 50, y: 56 },
+                ports: [{ name: 'Porto Artania', x: 50, y: 56 }],
+                capital: 'Doca Quebrada',
+                leader: 'Mestre Carpinteiro Jack',
+                exports: 'Bergantins, Velas Negras',
+                danger: 3,
+                images: ['Galeao_5.webp', 'Galeao_6.webp', 'Galeao_7.webp', 'Ilha_Barco.jpg', 'Ilha_Barco_2.jpg', 'Pirata_Ancora.jpg']
+
+            },
+            'Eskueira': {
+                title: 'Eskueira',
+                faction: 'República da Caveira',
+                lore: `Um labirinto de enseadas que serve como refúgio perfeito para corsários. Na Toca do Lobo, a astuta Madame Ching gerencia o submundo.\n\nEla controla uma vasta rede de contrabando e informação que rivaliza com as agências de espionagem imperiais. Aqui, um segredo vale mais que ouro.`,
+                coords: { x: 58, y: 55 },
+                ports: [{ name: 'Porto Eskueir', x: 58, y: 55 }],
+                capital: 'Toca do Lobo',
+                leader: 'Madame Ching',
+                exports: 'Contrabando, Informação',
+                danger: 4,
+                images: ['Chinese_Pirate.jpg', 'Cidade_Flutuante.jpg', 'Cidade_Flutuante_2.jpg', 'Bordel_Boate.jpg']
+
+            },
+            'Urtandaria': {
+                title: 'Urtandaria',
+                faction: 'República da Caveira',
+                lore: `Praia fortificada famosa por duelos ao amanhecer e jogos de azar. No Cassino da Areia, sob o olhar de Lucky "Bones", o destino é decidido nos dados.\n\nA ilha atrai os desesperados e os audazes em busca de glória rápida, exportando vícios e entretenimento para todo o arquipélago.`,
+                coords: { x: 61, y: 57 },
+                ports: [{ name: 'Porto Urtandaria', x: 61, y: 57 }],
+                capital: 'Cassino da Areia',
+                leader: 'Lucky "Bones"',
+                exports: 'Jogos, Vícios',
+                danger: 4,
+                images: ['Ilha_Tropical_4.jpg', 'Bordel.jpg', 'Bordel_Boate.jpg', 'Pirata_2.jpg']
+            },
+            'Churrantia': {
+                title: 'Churrantia',
+                faction: 'República da Caveira',
+                lore: `O banco dos piratas, uma ilha crivada de cavernas labirínticas e armadilhas mortais. Dizem que o Guardião Cego protege tesouros incalculáveis.\n\nA principal indústria local, ironicamente, é a venda de mapas de tesouro falsos para aventureiros gananciosos que raramente retornam.`,
+                coords: { x: 53, y: 55 },
+                ports: [{ name: 'Porto Churrantia', x: 53, y: 55 }],
+                capital: 'Gruta do Tesouro',
+                leader: 'Guardião Cego',
+                exports: 'Mapas do Tesouro Falsos',
+                danger: 5,
+                images: ['Ilha_Sangue.jpg', 'Destroços.webp', 'Destroços_Navio.jpg', 'Galeao_Nevoa.jpg', 'Ilha_Barco_Destruido.jpg']
+
+            },
+
+            // === MERCADORES FLUTUANTES ===
+            'Astovalia': {
+                title: 'Astovalia',
+                faction: 'Mercadores Flutuantes',
+                lore: `Uma metrópole de madeira flutuante, sempre em movimento pelos oceanos. O Grande Junco Dourado da Imperatriz do Mar de Jade carrega as riquezas do oriente.\n\nFuncionando como uma zona neutra diplomática, é o único lugar onde inimigos mortais podem negociar sedas e segredos em paz sob a bandeira da trégua.`,
+                coords: { x: 11, y: 37 },
+                ports: [{ name: 'Porto Astovalia', x: 11, y: 37 }],
+                capital: 'O Grande Junco Dourado',
+                leader: 'Imperatriz do Mar de Jade',
+                exports: 'Seda, Porcelana, Chá Raro',
+                danger: 1,
+                images: ['Cidade_Flutuante_3.jpg', 'Cidade_Flutuante_Noite.jpg', 'Cidade_Flutuante_Tropical.jpg', 'Barco_Chines.jpg', 'Barco_Imperio_Chines.jpg', 'Rainha_MERCADORES FLUTUANTES.jpg']
+            },
+            'Culisia': {
+                title: 'Culisia',
+                faction: 'Mercadores Flutuantes',
+                lore: `Arquipélago isolado envolto em névoa, refúgio seguro dos juncos flutuantes. O Shogun das Ilhas mantém a ordem rígida entre os clãs mercantes.\n\nEles cultivam lótus em águas calmas e produzem o papel de arroz de alta qualidade que é essencial para a burocracia e registros de todo o mundo.`,
+                coords: { x: 10, y: 43 },
+                ports: [{ name: 'Porto Culisia', x: 10, y: 43 }],
+                capital: 'Porto da Névoa',
+                leader: 'Shogun das Ilhas',
+                exports: 'Lótus, Papel de Arroz',
+                danger: 2,
+                images: ['Barco_Asiatico_2.jpg', 'Barco_Asiativo.jpg', 'Flutuadores_vila.jpg', 'Chinese_Warrior_Woman.jpg', 'Chinese_Warrior_Woman_2.jpg']
+            },
+
+            // === A GRANDE REPÚBLICA (Inspirado na França Revolucionária) ===
+
+            'Picearia': {
+                title: 'República de Picearia',
+                faction: 'Grande República',
+                lore: `O berço da Revolução. Foi em Murnorium que o último rei foi guilhotinado na Praça da Liberdade. Agora, a região é o coração ideológico da República.\n\nLiderada pelo fervoroso "Cidadão-Diretor" Maximilien, a lei aqui é absoluta: todos são iguais, e aqueles que discordam são inimigos da Razão.`,
+                coords: { x: 42, y: 74 }, // Coordenadas estimadas para a ilha oeste
+                ports: [{ name: 'Porto Murnorium', x: 42, y: 74 }],
+                capital: 'Murnorium',
+                leader: 'Cidadão-Diretor Maximilien',
+                exports: 'Panfletos Revolucionários, Vinho, Pólvora',
+                danger: 3,
+                images: ['Revolução.jpg', 'Revolução_2.jpg', 'Revolução_3.jpg', 'Franca.jpg', 'Rainha_França.jpg']
+            },
+
+            'Stria': {
+                title: 'Departamento Militar de Stria',
+                faction: 'Grande República',
+                lore: `Antigo reino anexado e transformado no braço armado da Revolução. Suas planícies servem como campo de treinamento para o "Grande Exército".\n\nO General Bonaparte utiliza Oponiale como base logística para suas campanhas de "libertação", garantindo que a disciplina militar prevaleça sobre o caos político.`,
+                coords: { x: 50, y: 75 }, // Região central
+                ports: [{ name: 'Porto Oponiale', x: 50, y: 75 }],
+                capital: 'Oponiale',
+                leader: 'General Bonaparte',
+                exports: 'Mosquetes, Canhões, Soldados Veteranos',
+                danger: 4,
+                images: ['Napoleao.jpg', 'French.jpg', 'French_Atirador.jpg', 'French_Axe.jpg', 'Guerra_Frances.jpg']
+            },
+
+            'Myosia': {
+                title: 'Comuna de Myosia',
+                faction: 'Grande República',
+                lore: `O centro intelectual e radical. Em Helbia, filósofos debatem o "Culto da Razão" enquanto o Comitê de Salvação Pública vigia a população.\n\nA arquitetura antiga foi substituída por monumentos neoclássicos austeros, e a aristocracia local foi completamente erradicada ou forçada ao exílio.`,
+                coords: { x: 52, y: 70 }, // Região norte
+                ports: [{ name: 'Porto Helbia', x: 52, y: 70 }],
+                capital: 'Helbia',
+                leader: 'O Comitê de Salvação Pública',
+                exports: 'Arte, Filosofia, Guilhotinas',
+                danger: 3,
+                images: ['Revolução_4.jpg', 'Revolução_5.jpg', 'Franca_2.jpg', 'Franca_3.jpg', 'Grecia_Antiga.jpg']
+
+            },
+
+            'Thaphia': {
+                title: 'Protetorado de Thaphia',
+                faction: 'Grande República',
+                lore: `Uma nação "irmã", recentemente "libertada" pela República. Thaphia fornece a frota necessária para furar os bloqueios navais das monarquias vizinhas.\n\nEmbora nominalmente independente sob a prefeita Menenia, as tropas republicanas estacionadas em cada esquina garantem que a lealdade à causa nunca vacile.`,
+                coords: { x: 53, y: 76 }, // Península sul/leste
+                ports: [{ name: 'Porto Menenia', x: 53, y: 76 }],
+                capital: 'Menenia',
+                leader: 'Prefeita Revolucionária Marianne',
+                exports: 'Navios de Linha, Mantimentos, Salitre',
+                danger: 2,
+                images: ['Veneza.jpg', 'Franca_Fazenda.jpg', 'Colonia.jpg', 'Galeao_8.webp']
+
+            },
+
+            'Olis': {
+                title: 'Distrito de Fronteira de Olis',
+                faction: 'Grande República',
+                lore: `A ponta da lança da expansão republicana. Erythro é uma cidade fortificada que vigia o leste, sempre pronta para repelir contra-revolucionários.\n\nÉ uma terra de oportunidades para soldados que buscam subir na hierarquia por mérito, não por sangue nobre, tornando-se Marechais do Império.`,
+                coords: { x: 55, y: 72 }, // Extremo leste
+                ports: [{ name: 'Porto Erythro', x: 55, y: 72 }],
+                capital: 'Erythro',
+                leader: 'Marechal Ney',
+                exports: 'Mármore, Aço, Fervor Patriótico',
+                danger: 4,
+                images: ['Guerra.jpg', 'Guerra_Cidade.jpg', 'Cidade_Destruida.jpg', 'French_Atirador.jpg']
+            },
+        };
+
+        // --- ADICIONE NO FINAL DO SCRIPT ---
+
+        let currentZoom = 1.0;
+
+        function adjustZoom(delta) {
+            const mapContainer = document.getElementById('mapContainer');
+
+            // Atualiza o valor do zoom
+            currentZoom += delta;
+
+            // Limites de Zoom (Min: 20%, Max: 300%)
+            if (currentZoom < 0.2) currentZoom = 0.2;
+            if (currentZoom > 3.0) currentZoom = 3.0;
+
+            // Aplica a transformação
+            mapContainer.style.transform = `scale(${currentZoom})`;
+
+            // Opcional: Ajustar a rolagem para tentar manter o centro (cálculo simples)
+            // Se quiser apenas o zoom visual, pode ignorar as linhas abaixo, 
+            // mas isso ajuda a não "perder" o mapa ao dar zoom out.
+            const wrapper = document.querySelector('.map-wrapper');
+            if (delta > 0) {
+                // Ao aumentar, move o scroll um pouco para compensar o crescimento
+                wrapper.scrollLeft += 100;
+                wrapper.scrollTop += 100;
+            }
+        }
+
+        let currentRegion = null;
+        let currentImageIndex = 0;
+
+        // Funcionalidade de arrastar o mapa
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        const mapWrapper = document.querySelector('.map-wrapper');
+
+        mapWrapper.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.pageX - mapWrapper.offsetLeft;
+            startY = e.pageY - mapWrapper.offsetTop;
+            scrollLeft = mapWrapper.scrollLeft;
+            scrollTop = mapWrapper.scrollTop;
+        });
+
+        mapWrapper.addEventListener('mouseleave', () => {
+            isDragging = false;
+        });
+
+        mapWrapper.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        mapWrapper.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            const x = e.pageX - mapWrapper.offsetLeft;
+            const y = e.pageY - mapWrapper.offsetTop;
+            const walkX = (x - startX) * 2;
+            const walkY = (y - startY) * 2;
+            mapWrapper.scrollLeft = scrollLeft - walkX;
+            mapWrapper.scrollTop = scrollTop - walkY;
+        });
+
+        function initMap() {
+            const container = document.getElementById('markers');
+            const mapImg = document.getElementById('worldMap');
+            const startSelect = document.getElementById('startPort');
+            const endSelect = document.getElementById('endPort');
+
+            // Espera a imagem carregar para calcular posições
+            mapImg.onload = () => {
+                const mapWidth = mapImg.offsetWidth;
+                const mapHeight = mapImg.offsetHeight;
+
+                for (let [key, data] of Object.entries(worldData)) {
+                    const marker = document.createElement('div');
+                    marker.className = 'region-marker';
+
+                    // Converte porcentagem para pixels
+                    const xPos = (data.coords.x / 100) * mapWidth;
+                    const yPos = (data.coords.y / 100) * mapHeight;
+
+                    marker.style.left = xPos + 'px';
+                    marker.style.top = yPos + 'px';
+                    marker.innerHTML = getFactionIcon(data.faction);
+                    marker.title = data.title;
+                    marker.onclick = () => openModal(key);
+                    container.appendChild(marker);
+
+                    data.ports.forEach(port => {
+                        const opt1 = document.createElement('option');
+                        opt1.value = key;
+                        opt1.textContent = port.name;
+                        startSelect.appendChild(opt1);
+
+                        const opt2 = document.createElement('option');
+                        opt2.value = key;
+                        opt2.textContent = port.name;
+                        endSelect.appendChild(opt2);
+                    });
+                }
+            };
+
+            // Trigger onload se imagem já carregou
+            if (mapImg.complete) mapImg.onload();
+        }
+
+        function getFactionIcon(faction) {
+            const icons = {
+                'Império Solar': '☀️',
+                'Companhia das Índias': '💰',
+                'Confederação das Marés': '🗿',
+                'República da Caveira': '☠️',
+                'Mercadores Flutuantes': '⛵',
+                'Contestado Verde': '🚩',
+                'Grande República': '⚔️'
+            };
+            return icons[faction] || '⚓';
+        }
+
+        // Lista de todas as imagens do diretório do mapa (adicione extensões conforme necessário)
+        const allMapImages = [
+            // Adicione aqui todos os arquivos de imagem do diretório do mapa
+            'Acampamento.jpg', 'African_Archer.jpg', 'African_Archer_2.jpg', 'African_Healer.jpg', 'African_Mounted.jpg', 'African_Mounted_2.jpg', 'African_Shield.jpg', 'African_Shield_2.jpg', 'African_Warrior.jpg', 'African_warrior_2.jpg', 'African_Warrior_3.jpg', 'Alpes_Suicos.jpg', 'Amazonia.jpg', 'Amendoim.jpg', 'Arco_Fio.jpg', 'Area_Victoriana.jpg', 'Arena_Cerimonial_Dragao.jpg', 'Armazem_Ervas_Secas.jpg', 'Arma_Guarda_Chuva.jpg', 'Arqueiro_Indio_Rpg.jpg', 'Arqueiro_Onça.jpg', 'Assaen.jpg', 'Assassina_1.jpg', 'Assassina_2.jpg', 'Assassina_3.jpg', 'Asteca_City.jpg', 'Asteca_City_2.jpg', 'Astec_City.jpg', 'Astec_City_2.jpg', 'Atchackle.jpg', 'Avenida_Lanternas_Rosas_Ciano.jpg', 'baixados.png', 'Barco_Asiatico_2.jpg', 'Barco_Asiativo.jpg', 'Barco_Chines.jpg', 'Barco_Imperio_Chines.jpg', 'Barco_Naufragio.jpg', 'Bartender.jpg', 'Batalha_Cavalo.jpg', 'Beco_Distrito_Prazer.jpg', 'Beladona.jpg', 'Biblioteca_Imperial_Interior.jpg', 'Biscoito_Roxo.jpg', 'Biscoito_Russo.jpg', 'Bolos.png', 'Bolo_Ferrero.jpg', 'Bolo_marrenco.jpg', 'Bordel.jpg', 'Bordel_Boate.jpg', 'Bordel_Perfumado_Luxuoso.jpg', 'Bosque_Pessegueiros.jpg', 'Brazilian_archer.jpg', 'Cachoeiras.jpg', 'Cachoeira_Selva.jpg', 'Callaern.jpg', 'Canais_Distrito_Norte.jpg', 'Capitão.jpg', 'Casa_Classe_Média.jpg', 'Casa_Classe_Média_Interior.jpg', 'Catedral.jpg', 'Cena_Crime_Patio_Limpo.jpg', 'Cerejeiras.jpg', 'Chinese_Archer.jpg', 'Chinese_Cannon.jpg', 'Chinese_Lancer.jpg', 'Chinese_Mountain.jpg', 'chinese_outside_map.jpg', 'Chinese_Pirate.jpg', 'Chinese_Wall.jpg', 'Chinese_warrior.jpg', 'Chinese_Warrior_Woman.jpg', 'Chinese_Warrior_Woman_2.jpg', 'Chá de Canela.jpg', 'Chá.jpg', 'Cidade_Destruida.jpg', 'Cidade_Dourada.jpg', 'Cidade_Flutuante.jpg', 'Cidade_Flutuante_2.jpg', 'Cidade_Flutuante_3.jpg', 'Cidade_Flutuante_Noite.jpg', 'Cidade_Flutuante_Tropical.jpg', 'Cidade_Ilha.jpg', 'Cidade_Lascada.jpg', 'Cidade_Montanha_Solar.jpg', 'Cidade_Pantano.jpg', 'Cidade_Pequena_Portuaria.jpg', 'Cidade_Porteira.jpg', 'Cidade_Portuaria.jpg', 'Cidade_Portuaria_2.jpg', 'Cidade_Proibida.jpg', 'Cidade_Rural.jpg', 'Cidade_Solar.jpg', 'Cidade_Solar_2.jpg', 'Cidade_Velha.jpg', 'Cidade_Árabe.jpg', 'Clareira.jpg', 'Colonia.jpg', 'Colonia_2.jpg', 'Colonia_3.jpg', 'Colonia_4.jpg', 'Colonia_5.jpg', 'Colosso_Rodes.jpg', 'Comida_Taverna.jpg', 'Comida_Taverna_2.jpg', 'Companhia_Indias_Interior.jpg', 'Conquistador.jpg', 'Conquistadora.jpg', 'Conquistadora_2.jpg', 'Conquistador_2.jpg', 'Conquistador_3.jpg', 'Conquistador_4.jpg', 'Coral.jpg', 'Culto_Satânico.jpg', 'Destroyed_Cities.jpg', 'Destroços.webp', 'Destroços_Navio.jpg', 'Destruição.jpg', 'Dutch_Farm.jpg', 'Dutch_Flower.jpg', 'Dutch_Porto.jpg', 'Dutch_Porto_Florido.jpg', 'El_cidade.jpg', 'Ensopado.jpg', 'Era_Victoriana.jpg', 'Era_Victoriana_Beco_Agua.jpg', 'Era_Victoriana_Fazenda.jpg', 'Escalda_Pés.jpg', 'Esconderijo_Pirata.jpg', 'Escritorio_Jinshi.jpg', 'Estufa_Floresta_Temperada.jpg', 'Estufa_Plantas_Floreadas.jpg', 'Estufa_Tropical.jpg', 'Evento_Imperail_Dragão_Cetim.jpg', 'Fazenda.jpg', 'Fazenda_Chá.jpg', 'Fazendinha.jpg', 'Festival_Chinês.jpg', 'Flutuadores_vila.jpg', 'Fortaleza_Ilha.jpg', 'Forte_Alagado.jpg', 'Forte_Deserto.jpg', 'Forte_Lago.jpg', 'Forte_Montanha.jpg', 'Forte_Solar.jpg', 'Forte_Solar_2.jpg', 'Forte_Solar_3.jpg', 'Fosso_Defensivo_Muralha.jpg', 'Franca.jpg', 'Franca_2.jpg', 'Franca_3.jpg', 'Franca_Fazenda.jpg', 'French.jpg', 'French_Atirador.jpg', 'French_Axe.jpg', 'Galeao.webp', 'Galeao_2.webp', 'Galeao_3.webp', 'Galeao_4.webp', 'Galeao_5.webp', 'Galeao_6.webp', 'Galeao_7.webp', 'Galeao_8.webp', 'Galeao_9.webp', 'Galeao_Comercial_1.webp', 'Galeao_Comercial_2.webp', 'Galeao_Comercial_3.webp', 'Galeao_Comercial_4.webp', 'Galeao_Comercial_5.webp', 'Galeao_Comercial_6.webp', 'Galeao_Imperial.webp', 'Galeao_Nevoa.jpg', 'Galea_Outro.webp', 'Galeão_Asiatico.jpg', 'garden_map.jpg', 'Geleia_Pao.jpg', 'Grande_Templo_Imperial.jpg', 'Grecia_Antiga.jpg', 'Guerra.jpg', 'Guerra_Cidade.jpg', 'Guerra_Frances.jpg', 'Guerreio_Arara.jpg', 'Guerreiro_asteca.jpg', 'Guerreiro_maya.jpg', 'Guerreiro_Onça.jpg', 'Hacienda.jpg', 'Horta_Medicinal_Maomao.jpg', 'Igreja_Rural.jpg', 'Ilha.jpg', 'Ilha.webp', 'Ilha_10.jpg', 'Ilha_11.jpg', 'Ilha_12.jpg', 'Ilha_13.jpg', 'Ilha_2.jpg', 'Ilha_3.jpg', 'Ilha_4.jpg', 'Ilha_5.jpg', 'Ilha_6.jpg', 'Ilha_7.jpg', 'Ilha_8.jpg', 'Ilha_9.jpg', 'Ilha_Barco.jpg', 'Ilha_Barco_2.jpg', 'Ilha_Barco_3.jpg', 'Ilha_Barco_Destruido.jpg', 'Ilha_Barco_Naufragado.jpg', 'Ilha_Barco_Noite.jpg', 'Ilha_Batalha.webp', 'Ilha_Cidade.jpg', 'Ilha_entrada.jpg', 'Ilha_Forte.webp', 'Ilha_Império.jpg', 'Ilha_Normal.webp', 'Ilha_Povoado.jpg', 'Ilha_Povoado_.jpg', 'Ilha_Rica.jpg', 'Ilha_Sangue.jpg', 'Ilha_Tropical.jpg', 'Ilha_Tropical_2.jpg', 'Ilha_Tropical_3.jpg', 'Ilha_Tropical_4.jpg', 'Incenso Artesanal.jpg', 'index.html', 'Indias_orientais.jpg', 'Indias_orientais_2.jpg', 'Indias_orientais_Planices.jpg', 'Indias_orientais_porto.jpg', 'Indias_orientais_porto_2.jpg', 'Indigenous_Warrior.jpg', 'Industrialização.jpg', 'Interior_Casa_Victoriana.jpg', 'Japanese_Archer.jpg', 'Japanese_City.jpg', 'Japanese_Warrior.jpg', 'Jardim_Antigo.jpg', 'Jardim_Ervas_Geral.jpg', 'Jardim_Privado_Rosa.jpg', 'Jardim_Sakura.jpg', 'Jardim_Secreto_Noite.jpg', 'Jungle_Temple.webp', 'Lago.jpg', 'Lago_Floresta.jpg', 'Lago_Floresta_Estrelas.jpg', 'Loja_Apotecária.jpg', 'Loja_Apotecária_2.jpg', 'Loja_Apotecária_3.jpg', 'Maori_Warrior.jpg', 'Mapa_Arte_Reino_Li.jpg', 'Mapa_Distrito_Prazer.jpg', 'Mapa_Esquematico_Palacio.gif', 'Mar.jpg', 'maya.jpg', 'Mel.jpg', 'Mercado_Deserto.jpg', 'Mercado_Feira_Apertado.jpg', 'Mercado_Rua_Noite.jpg', 'Monasterio.jpg', 'MulssomanoMercado.jpg', 'Napoleao.jpg', 'Natureza.jpg', 'Natureza_Indigena.jpg', 'Navio.jpg', 'Navios_Batalha.jpg', 'Navios_Cais.jpg', 'Navio_1.jpg', 'Navio_Ancorado.jpg', 'Navio_Ancorado_2.jpg', 'Navio_Ancorado_3.jpg', 'Navio_Ancorado_4.jpg', 'Navio_Ancorado_5.jpg', 'Navio_Atracado.jpg', 'Navio_Deposito.jpg', 'Navio_Destroços.jpg', 'Navio_Porto.jpg', 'Navio_Principal.jpg', 'Navio_Sem_Canhao.jpg', 'Nobre_1.jpg', 'Nobre_2.jpg', 'Nobre_3.jpg', 'Nobre_4.jpg', 'Nobre_5.jpg', 'Nobre_6.jpg', 'Ocas.jpg', 'Oceano.jpg', 'Palacio_Arabe.jpg', 'Palacio_Arabe_2.jpg', 'Palacio_Barroco.jpg', 'Palacio_Exterior.jpg', 'Palacio_Isometrico_Geral.jpg', 'Palácio_Chines.jpg', 'Palácio_Estrangeiro_Ecêntrico.jpg', 'Palácio_Imperial.jpg', 'Palácio_Interior_Sakuras.jpg', 'Palácio_Interior_Verão.jpg', 'Pampas_Jade.jpg', 'Pao_Blackberry.jpg', 'Pavilhao_Granada_Patio.jpg', 'Pavilhao_Verao_Patio.jpg', 'Perfume.jpg', 'Perfume_Amor.jpg', 'Pintura_1.jpg', 'Pintura_2.jpg', 'Pintura_3.jpg', 'Pirata_1.jpg', 'Pirata_2.jpg', 'Pirata_3.jpg', 'Pirata_Ancora.jpg', 'Pirate Cluster.webp', 'Piscinas_Imperiais_Competição.jpg', 'Piscinas_Imperiais_Competição_Tarde.jpg', 'Pistoleiro.jpg', 'Planta.jpg', 'Plantas_Bruxas.jpg', 'Plantas_Mortais.jpg', 'Planta_10.jpg', 'Planta_11.jpg', 'Planta_12.jpg', 'Planta_13.jpg', 'Planta_14.jpg', 'Planta_15.jpg', 'Planta_16.jpg', 'Planta_17.jpg', 'Planta_18.jpg', 'Planta_19.jpg', 'Planta_2.jpg', 'Planta_20.jpg', 'Planta_21.jpg', 'Planta_3.jpg', 'Planta_4.jpg', 'Planta_5.jpg', 'Planta_6.jpg', 'Planta_7.jpg', 'Planta_8.jpg', 'Planta_9.jpg', 'Planta_Casa_Verdete.jpg', 'Planta_Venenosa.jpg', 'Plesland_2026-01-17-23-16.webp', 'Polinesia_Vila.jpg', 'Polinesia_Vila_2.jpg', 'Porto_Colosso.jpg', 'Porto_Colosso_2.jpg', 'Porto_Colosso_3.jpg', 'Porto_Vitoriano.jpg', 'Poção.jpg', 'Praca_Administrativa_Central.jpg', 'Pântano.jpg', 'Rainha_Companhia_Oriental.jpg', 'Rainha_França.jpg', 'Rainha_Imperio_Solar.jpg', 'Rainha_MERCADORES FLUTUANTES.jpg', 'Rancho_Apotecário.jpg', 'Rei_imperio_Solar.jpg', 'Revolução.jpg', 'Revolução_2.jpg', 'Revolução_3.jpg', 'Revolução_4.jpg', 'Revolução_5.jpg', 'Rio_Comercial_Barqueiros_Centro.jpg', 'Rio_Comercial_Barqueiros_Suburbio.jpg', 'Rio_Comercial_Barqueiros_Vazio.jpg', 'Rua_Mercado_Distrito_Prazer (2).jpg', 'Ruinas.jpg', 'Ruinas_Apotecárias.jpg', 'Salao_Banquete_Lotus.jpg', 'Santuario_Chines.jpg', 'Selva.jpg', 'Sopa_Geleia.jpg', 'Suco de Uva.jpg', 'Sunken_City.jpg', 'Tapeçaria.jpg', 'Templo_Ancestral_Branco.jpg', 'Templo_Floresta_Bambu.jpg', 'Templo_Marítmo.jpg', 'Templo_Montanha_Outono.jpg', 'Templo_Tiki.jpg', 'Termas_Imperiais_Banho.jpg', 'The Black Tides.webp', 'Torre_Francesa.jpg', 'Torta.jpg', 'Tribo_Polinesia.jpg', 'Tropical Pirate Town.webp', 'Veleiro.jpg', 'Veneza.jpg', 'Victorian_Era_Char.jpg', 'Victorian_Era_Medico.jpg', 'Victorian_Era_Nobre.jpg', 'Victorian_Era_Pilot.jpg', 'Victorian_Era_Sem_Braço.jpg', 'Viking_Archer.jpg', 'Viking_Warrior_Woman.jpg', 'Vikin_Archer_2.jpg', 'Vila_Coreana.jpg', 'Vila_Coreana_2.jpg', 'Vila_Coreana_3.jpg', 'Vila_Destruida.jpg', 'Vila_Destruida_2.jpg', 'Vila_Escondida.jpg', 'Vila_Polinesia.jpg', 'Vista_Jardim_Outono.jpg', 'Vista_Panoramica_Capital.jpg', 'Vista_Pavilhao_Cristal.jpg', 'War_Canoe.jpg', 'Wassares.jpg', 'Wassares_Dia.jpg', 'Wassares_Guerra.jpg'
+        ];
+
+        // Narrações automáticas para cada imagem (pode ser customizado)
+        function getImageNarration(img) {
+            // Exemplo: pode customizar para cada imagem específica
+            const narracoes = {
+                'Forte_Solar.jpg': 'O Forte Solar, símbolo do poder imperial.',
+                'Cidade_Solar.jpg': 'A cidade banhada pelo sol dourado.',
+                'Conquistador_4.jpg': 'Conquistador do Império Solar em marcha.',
+                // ...adicione narrações específicas para imagens importantes...
+            };
+            return narracoes[img] || 'Imagem: ' + img.replace(/[_\-.]/g, ' ').replace(/\.[a-z]+$/i, '');
+        }
+
+        // --- SUBSTITUA A FUNÇÃO openModal POR ESTA ---
+
+        function openModal(regionKey) {
+            currentRegion = regionKey;
+            currentImageIndex = 0;
+            const data = worldData[regionKey];
+
+            // 1. Preenche Dados Básicos
+            document.getElementById('regionTitle').textContent = data.title;
+            document.getElementById('factionBadge').textContent = data.faction;
+            document.getElementById('loreText').textContent = data.lore;
+
+            // 2. Preenche Ficha Técnica
+            document.getElementById('statCapital').textContent = data.capital || 'Não Mapeada';
+            document.getElementById('statLeader').textContent = data.leader || 'Anarquia / Disputado';
+            document.getElementById('statExports').textContent = data.exports || 'Escassos';
+
+            // 3. Gera as Caveiras de Perigo
+            const dangerLevel = data.danger || 1;
+            const dangerContainer = document.getElementById('statDanger');
+            dangerContainer.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const skull = document.createElement('span');
+                skull.textContent = '💀';
+                skull.style.opacity = i < dangerLevel ? '1' : '0.2';
+                skull.style.filter = i < dangerLevel ? 'drop-shadow(0 0 5px red)' : 'none';
+                dangerContainer.appendChild(skull);
+            }
+
+            // 4. Carrossel com IMAGENS INDIVIDUAIS do país
+            const carousel = document.getElementById('carousel');
+            const oldImages = carousel.querySelectorAll('.carousel-image');
+            oldImages.forEach(el => el.remove());
+
+            // USA AS IMAGENS ESPECÍFICAS DO PAÍS
+            let regionImages = data.images || ['Mar.jpg'];
+
+            regionImages.forEach((img, idx) => {
+                const imgEl = document.createElement('img');
+                imgEl.className = 'carousel-image';
+                imgEl.src = img;
+                imgEl.alt = data.title;
+                imgEl.style.objectFit = "contain";
+
+                if (idx === 0) imgEl.classList.add('active');
+                carousel.insertBefore(imgEl, carousel.querySelector('.carousel-btn'));
+            });
+
+            document.getElementById('regionModal').style.display = 'block';
+        }
+
+        // Define o porto de PARTIDA vindo do Modal
+        function setRouteStart() {
+            if (!currentRegion) return;
+            const startSelect = document.getElementById('startPort');
+            startSelect.value = currentRegion;
+            
+            // Feedback visual
+            startSelect.style.border = '3px solid #d4af37'; // Dourado
+            
+            closeModal();
+            document.querySelector('.route-panel').scrollIntoView({ behavior: 'smooth' });
+            
+            setTimeout(() => startSelect.style.border = '3px solid #8b6914', 2000);
+        }
+
+        // Define o porto de DESTINO vindo do Modal
+        function setRouteDestination() {
+            if (!currentRegion) return;
+            const endSelect = document.getElementById('endPort');
+            endSelect.value = currentRegion; 
+            
+            endSelect.style.border = '3px solid #d4af37';
+            
+            closeModal();
+            document.querySelector('.route-panel').scrollIntoView({ behavior: 'smooth' });
+            
+            setTimeout(() => endSelect.style.border = '3px solid #8b6914', 2000);
+        }
+
+        function closeModal() {
+            document.getElementById('regionModal').style.display = 'none';
+        }
+
+        function changeImage(direction) {
+            if (!currentRegion) return;
+            const images = document.querySelectorAll('.carousel-image');
+
+            // Remove a classe active da imagem atual
+            images[currentImageIndex].classList.remove('active');
+
+            // Calcula o novo índice
+            currentImageIndex += direction;
+            if (currentImageIndex >= images.length) currentImageIndex = 0;
+            if (currentImageIndex < 0) currentImageIndex = images.length - 1;
+
+            // Adiciona a classe active na nova imagem
+            images[currentImageIndex].classList.add('active');
+        }
+
+        function calculateRoute() {
+            const startKey = document.getElementById('startPort').value;
+            const endKey = document.getElementById('endPort').value;
+            // Pega a velocidade digitada pelo usuário
+            const speedInput = document.getElementById('shipSpeed').value;
+            const speedKmh = parseFloat(speedInput) || 15; // Fallback para 15 se vazio
+
+            if (!startKey || !endKey) {
+                alert('Por favor, selecione o porto de partida e o destino!');
+                return;
+            }
+
+            if (startKey === endKey) {
+                alert('Você já está neste local! Escolha portos diferentes.');
+                return;
+            }
+
+            const startCoords = worldData[startKey].coords;
+            const endCoords = worldData[endKey].coords;
+
+            // 1. CÁLCULO MATEMÁTICO
+            const dx = endCoords.x - startCoords.x;
+            const dy = endCoords.y - startCoords.y;
+            const percentDistance = Math.sqrt(dx * dx + dy * dy);
+
+            // Escala: 100% do mapa = 20.000km (ajustado para ser um mundo grande)
+            const kmDistance = Math.round(percentDistance * 200);
+
+            // Cálculo do tempo baseado na velocidade manual
+            const totalHours = kmDistance / speedKmh;
+            const days = Math.floor(totalHours / 24);
+            const hours = Math.round(totalHours % 24);
+
+            // 2. ATUALIZAÇÃO DO TEXTO
+            document.getElementById('distance').textContent = kmDistance.toLocaleString('pt-BR') + ' km';
+            document.getElementById('time').textContent = 
+                `${days} dias e ${hours} horas (viajando a ${speedKmh} km/h)`;
+            
+            const resultDiv = document.getElementById('routeResult');
+            resultDiv.classList.add('show');
+
+            // 3. DESENHAR A LINHA NO SVG
+            const line = document.getElementById('drawnRouteLine');
+            
+            // As coordenadas no worldData são em %, o SVG aceita % no x1/y1!
+            // Isso facilita muito pois não precisamos converter para pixels e recalcular no zoom.
+            line.setAttribute('x1', startCoords.x + '%');
+            line.setAttribute('y1', startCoords.y + '%');
+            line.setAttribute('x2', endCoords.x + '%');
+            line.setAttribute('y2', endCoords.y + '%');
+            
+            line.style.display = 'block';
+
+            // Opcional: Animação suave de scroll para ver o resultado
+            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        window.onclick = (e) => {
+            if (e.target.id === 'regionModal') closeModal();
+        };
+
+        initMap();
+    </script>
+</body>
+
+</html>
